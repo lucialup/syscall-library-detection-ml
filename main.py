@@ -14,8 +14,19 @@ from src.config import (
 )
 from src.data import load_dataset
 from src.features import FeaturePipeline
-from src.models import LogisticDetector
+from src.models import LogisticDetector, RandomForestDetector
 from src.evaluation import run_cross_validation, ResultsReport
+
+
+MODELS = {
+    "logistic": LogisticDetector,
+    "random_forest": RandomForestDetector,
+}
+
+MODEL_NAMES = {
+    "logistic": "Logistic Regression",
+    "random_forest": "Random Forest",
+}
 
 
 def main():
@@ -45,11 +56,31 @@ def main():
         default=5,
         help="Number of cross-validation folds",
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        choices=list(MODELS.keys()),
+        default="logistic",
+        help="Model to use for classification",
+    )
+    parser.add_argument(
+        "--n-estimators",
+        type=int,
+        default=200,
+        help="Number of trees for Random Forest",
+    )
+    parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=20,
+        help="Max depth for Random Forest trees",
+    )
     args = parser.parse_args()
 
+    model_name = MODEL_NAMES.get(args.model, args.model)
     print("=" * 70)
     print("LIBRARY DETECTION FROM SYSCALL TRACES")
-    print("Model: Logistic Regression with TF-IDF Features")
+    print(f"Model: {model_name} with TF-IDF Features")
     print("=" * 70)
 
     data_config = DataConfig()
@@ -92,7 +123,14 @@ def main():
             print(f"{library:<20} {'N/A':>8} {'N/A':>8} {support:>10} {'skip':>10}")
             continue
 
-        model = LogisticDetector(model_config)
+        if args.model == "random_forest":
+            model = RandomForestDetector(
+                model_config,
+                n_estimators=args.n_estimators,
+                max_depth=args.max_depth,
+            )
+        else:
+            model = LogisticDetector(model_config)
         metrics = run_cross_validation(model, X, y, eval_config)
 
         model.fit(X, y)
