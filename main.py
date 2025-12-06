@@ -14,18 +14,20 @@ from src.config import (
 )
 from src.data import load_dataset
 from src.features import FeaturePipeline
-from src.models import LogisticDetector, RandomForestDetector
+from src.models import LogisticDetector, RandomForestDetector, BalancedRandomForestDetector
 from src.evaluation import run_cross_validation, ResultsReport
 
 
 MODELS = {
     "logistic": LogisticDetector,
     "random_forest": RandomForestDetector,
+    "balanced_rf": BalancedRandomForestDetector,
 }
 
 MODEL_NAMES = {
     "logistic": "Logistic Regression",
     "random_forest": "Random Forest",
+    "balanced_rf": "Balanced Random Forest",
 }
 
 
@@ -125,6 +127,12 @@ def main():
 
         if args.model == "random_forest":
             model = RandomForestDetector(
+                model_config,
+                n_estimators=args.n_estimators,
+                max_depth=args.max_depth,
+            )
+        elif args.model == "balanced_rf":
+            model = BalancedRandomForestDetector(
                 model_config,
                 n_estimators=args.n_estimators,
                 max_depth=args.max_depth,
