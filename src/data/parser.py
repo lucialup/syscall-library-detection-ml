@@ -84,7 +84,8 @@ def get_path_category(path: str) -> Optional[str]:
 
 
 class SyscallParser:
-    def __init__(self):
+    def __init__(self, anonymize_threads: bool = False):
+        self.anonymize_threads = anonymize_threads
         self.reset()
 
     def reset(self):
@@ -102,6 +103,7 @@ class SyscallParser:
         self.has_tcp: bool = False
         self.has_udp: bool = False
         self._prev_syscall: Optional[str] = None
+        self._thread_mapping: Dict[str, str] = {}
 
     def parse_file(self, filepath: Path) -> Dict:
         self.reset()
@@ -111,6 +113,14 @@ class SyscallParser:
                 self._process_line(line)
 
         return self._build_result()
+
+    def _anonymize_thread(self, thread: str) -> str:
+        if not self.anonymize_threads:
+            return thread
+        if thread not in self._thread_mapping:
+            thread_id = len(self._thread_mapping) + 1
+            self._thread_mapping[thread] = f"thread_{thread_id:03d}"
+        return self._thread_mapping[thread]
 
     def _process_line(self, line: str):
         record = parse_line(line)
@@ -129,6 +139,7 @@ class SyscallParser:
 
         thread = normalize_thread(comm)
         if thread:
+            thread = self._anonymize_thread(thread)
             self.thread_names.add(thread)
             if syscall:
                 self.thread_syscalls.append(f"{thread}:{syscall}")

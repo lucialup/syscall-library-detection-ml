@@ -77,12 +77,19 @@ def main():
         default=20,
         help="Max depth for Random Forest trees",
     )
+    parser.add_argument(
+        "--anonymize-threads",
+        action="store_true",
+        help="Replace thread names with generic identifiers (thread_001, thread_002, etc.)",
+    )
     args = parser.parse_args()
 
     model_name = MODEL_NAMES.get(args.model, args.model)
     print("=" * 70)
     print("LIBRARY DETECTION FROM SYSCALL TRACES")
     print(f"Model: {model_name} with TF-IDF Features")
+    if args.anonymize_threads:
+        print("Thread Anonymization: ENABLED")
     print("=" * 70)
 
     data_config = DataConfig()
@@ -94,7 +101,7 @@ def main():
     eval_config = EvalConfig(cv_folds=args.cv_folds)
 
     print("\nLoading dataset...")
-    data = load_dataset(data_config)
+    data = load_dataset(data_config, anonymize_threads=args.anonymize_threads)
     print(f"Loaded {len(data)} apps")
 
     print("\nExtracting features...")

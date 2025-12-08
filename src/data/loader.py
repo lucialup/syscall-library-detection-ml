@@ -19,9 +19,9 @@ class AppData:
     labels: Dict[str, int]
 
 
-def load_dataset(config: Optional[DataConfig] = None) -> List[AppData]:
+def load_dataset(config: Optional[DataConfig] = None, anonymize_threads: bool = False) -> List[AppData]:
     config = config or DataConfig()
-    parser = SyscallParser()
+    parser = SyscallParser(anonymize_threads=anonymize_threads)
 
     syscall_files = list(config.syscall_dir.glob("*.syscall.log"))
     sbom_map = {f.stem.replace(".sbom", ""): f for f in config.sbom_dir.glob("*.sbom.json")}
