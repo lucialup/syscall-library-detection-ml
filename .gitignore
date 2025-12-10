@@ -35,7 +35,6 @@ inspect_*.py
 
 run_cnn.py
 run_hybrid_cnn.py
-run_provenance_gnn_*.py
 run_parallel_*.py
 run_gnn_v6*.py
 run_wordlevel_*.py
