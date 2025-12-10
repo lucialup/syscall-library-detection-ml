@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 
 @dataclass
 class DataConfig:
-    data_dir: Path = field(default_factory=lambda: Path("/home/luci/android-apks-dataset/ground_truth"))
+    data_dir: Path = field(default_factory=lambda: Path("/Users/lucialup/Documents/Master-thesis-ml"))
     min_syscalls: int = 100
 
     @property

@@ -17,7 +17,6 @@ from src.features import FeaturePipeline
 from src.models import LogisticDetector, RandomForestDetector, BalancedRandomForestDetector
 from src.evaluation import run_cross_validation, ResultsReport
 
-
 MODELS = {
     "logistic": LogisticDetector,
     "random_forest": RandomForestDetector,
@@ -29,6 +28,20 @@ MODEL_NAMES = {
     "random_forest": "Random Forest",
     "balanced_rf": "Balanced Random Forest",
 }
+
+
+def create_model(model_type: str, model_config: ModelConfig,
+                 n_estimators: int = 200, max_depth: int = 20):
+    if model_type not in MODELS:
+        raise ValueError(f"Unknown model type: {model_type}. Choose from {list(MODELS.keys())}")
+
+    model_class = MODELS[model_type]
+
+    # Tree-based models have additional hyperparameters
+    if model_type in ("random_forest", "balanced_rf"):
+        return model_class(model_config, n_estimators=n_estimators, max_depth=max_depth)
+    else:
+        return model_class(model_config)
 
 
 def main():
@@ -84,7 +97,7 @@ def main():
     )
     args = parser.parse_args()
 
-    model_name = MODEL_NAMES.get(args.model, args.model)
+    model_name = MODEL_NAMES[args.model]
     print("=" * 70)
     print("LIBRARY DETECTION FROM SYSCALL TRACES")
     print(f"Model: {model_name} with TF-IDF Features")
@@ -132,20 +145,12 @@ def main():
             print(f"{library:<20} {'N/A':>8} {'N/A':>8} {support:>10} {'skip':>10}")
             continue
 
-        if args.model == "random_forest":
-            model = RandomForestDetector(
-                model_config,
-                n_estimators=args.n_estimators,
-                max_depth=args.max_depth,
-            )
-        elif args.model == "balanced_rf":
-            model = BalancedRandomForestDetector(
-                model_config,
-                n_estimators=args.n_estimators,
-                max_depth=args.max_depth,
-            )
-        else:
-            model = LogisticDetector(model_config)
+        model = create_model(
+            args.model,
+            model_config,
+            n_estimators=args.n_estimators,
+            max_depth=args.max_depth,
+        )
         metrics = run_cross_validation(model, X, y, eval_config)
 
         model.fit(X, y)
