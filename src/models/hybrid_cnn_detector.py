@@ -5,6 +5,7 @@ import numpy as np
 from typing import List
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
 
 class HybridSyscallCNN(nn.Module):
@@ -194,25 +195,35 @@ class HybridCNNLibraryDetector:
             for app in app_data_list
         ]
 
-        self.vectorizer_cnn.fit(texts)
-        self.vectorizer_tfidf.fit(texts)
+        train_idx, val_idx = train_test_split(
+            np.arange(len(texts)),
+            test_size=0.2,
+            random_state=42,
+            stratify=y
+        )
+
+        train_texts = [texts[i] for i in train_idx]
+        val_texts = [texts[i] for i in val_idx]
+        train_apps = [app_data_list[i] for i in train_idx]
+        val_apps = [app_data_list[i] for i in val_idx]
+        y_train, y_val = y[train_idx], y[val_idx]
+
+        self.vectorizer_cnn.fit(train_texts)
+        self.vectorizer_tfidf.fit(train_texts)
         self.vocab_size = len(self.vectorizer_cnn.vocabulary_) + 1
 
-        X_seq = self._tokenize_batch(texts)
-        X_tfidf = self._extract_tfidf_features(texts)
-        X_stats = self._extract_stats(app_data_list)
+        X_seq_train = self._tokenize_batch(train_texts)
+        X_seq_val = self._tokenize_batch(val_texts)
 
-        self.stats_scaler.fit(X_stats)
-        X_stats = self.stats_scaler.transform(X_stats).astype(np.float32)
+        X_tfidf_train = self._extract_tfidf_features(train_texts)
+        X_tfidf_val = self._extract_tfidf_features(val_texts)
 
-        n_train = int(0.8 * len(X_seq))
-        indices = np.random.permutation(len(X_seq))
-        train_idx, val_idx = indices[:n_train], indices[n_train:]
+        X_stats_train = self._extract_stats(train_apps)
+        X_stats_val = self._extract_stats(val_apps)
 
-        X_seq_train, X_seq_val = X_seq[train_idx], X_seq[val_idx]
-        X_tfidf_train, X_tfidf_val = X_tfidf[train_idx], X_tfidf[val_idx]
-        X_stats_train, X_stats_val = X_stats[train_idx], X_stats[val_idx]
-        y_train, y_val = y[train_idx], y[val_idx]
+        self.stats_scaler.fit(X_stats_train)
+        X_stats_train = self.stats_scaler.transform(X_stats_train).astype(np.float32)
+        X_stats_val = self.stats_scaler.transform(X_stats_val).astype(np.float32)
 
         X_seq_train_t = torch.LongTensor(X_seq_train).to(self.device)
         X_tfidf_train_t = torch.FloatTensor(X_tfidf_train).to(self.device)
@@ -249,6 +260,7 @@ class HybridCNNLibraryDetector:
         )
 
         best_val_loss = float('inf')
+        best_model_state = None
         patience_counter = 0
         early_stop_patience = 10
 
@@ -285,11 +297,16 @@ class HybridCNNLibraryDetector:
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
                 patience_counter = 0
             else:
                 patience_counter += 1
                 if patience_counter >= early_stop_patience:
                     break
+
+        if best_model_state is not None:
+            self.model.load_state_dict(best_model_state)
+            self.model.to(self.device)
 
         return self
 

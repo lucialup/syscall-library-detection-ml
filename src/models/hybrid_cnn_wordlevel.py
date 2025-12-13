@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import numpy as np
 from typing import List
 from pathlib import Path
-import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
 
 class HybridSyscallCNN(nn.Module):
@@ -173,23 +173,34 @@ class HybridCNNWordLevelDetector:
         """Train hybrid CNN with word-level tokenization."""
         texts = [(app.threads or "") + " " + (app.paths or "") for app in app_data_list]
 
-        self.tokenizer.fit(texts)
-        self.tfidf.fit(texts)
+        train_idx, val_idx = train_test_split(
+            np.arange(len(texts)),
+            test_size=0.2,
+            random_state=42,
+            stratify=y_train
+        )
 
-        X_seq = self._tokenize_batch(texts)
-        X_tfidf = self._extract_tfidf_features(texts)
-        X_stats = self._extract_stats(app_data_list)
-
-        X_stats = self.stats_scaler.fit_transform(X_stats).astype(np.float32)
-
-        n_train = int(0.8 * len(X_seq))
-        indices = np.random.permutation(len(X_seq))
-        train_idx, val_idx = indices[:n_train], indices[n_train:]
-
-        X_seq_train, X_seq_val = X_seq[train_idx], X_seq[val_idx]
-        X_tfidf_train, X_tfidf_val = X_tfidf[train_idx], X_tfidf[val_idx]
-        X_stats_train, X_stats_val = X_stats[train_idx], X_stats[val_idx]
+        train_texts = [texts[i] for i in train_idx]
+        val_texts = [texts[i] for i in val_idx]
+        train_apps = [app_data_list[i] for i in train_idx]
+        val_apps = [app_data_list[i] for i in val_idx]
         y_train_split, y_val = y_train[train_idx], y_train[val_idx]
+
+        self.tokenizer.fit(train_texts)
+        self.tfidf.fit(train_texts)
+
+        X_seq_train = self._tokenize_batch(train_texts)
+        X_seq_val = self._tokenize_batch(val_texts)
+
+        X_tfidf_train = self._extract_tfidf_features(train_texts)
+        X_tfidf_val = self._extract_tfidf_features(val_texts)
+
+        X_stats_train = self._extract_stats(train_apps)
+        X_stats_val = self._extract_stats(val_apps)
+
+        self.stats_scaler.fit(X_stats_train)
+        X_stats_train = self.stats_scaler.transform(X_stats_train).astype(np.float32)
+        X_stats_val = self.stats_scaler.transform(X_stats_val).astype(np.float32)
 
         # Convert to tensors
         X_seq_train_t = torch.LongTensor(X_seq_train).to(self.device)
@@ -207,8 +218,8 @@ class HybridCNNWordLevelDetector:
             vocab_size=actual_vocab_size,
             embed_dim=self.embed_dim,
             num_filters=self.num_filters,
-            tfidf_dim=X_tfidf.shape[1],
-            stats_dim=X_stats.shape[1]
+            tfidf_dim=X_tfidf_train.shape[1],
+            stats_dim=X_stats_train.shape[1]
         ).to(self.device)
 
         pos_count = y_train_split.sum()
