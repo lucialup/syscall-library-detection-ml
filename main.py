@@ -117,17 +117,7 @@ def main():
     data = load_dataset(data_config, anonymize_threads=args.anonymize_threads)
     print(f"Loaded {len(data)} apps")
 
-    print("\nExtracting features...")
-    pipeline = FeaturePipeline(feature_config)
-    X = pipeline.fit_transform(data)
-
-    print("\nFeature breakdown:")
-    for name, count in pipeline.get_feature_breakdown().items():
-        print(f"  {name}: {count}")
-    print(f"  Total: {pipeline.n_features}")
-
     labels_df = pd.DataFrame([d.labels for d in data])
-    feature_names = pipeline.get_feature_names()
 
     report = ResultsReport()
 
@@ -137,6 +127,14 @@ def main():
     print(f"\n{'Library':<20} {'F1':>8} {'Std':>8} {'Support':>10} {'Tier':>10}")
     print("-" * 60)
 
+    model_class = MODELS[args.model]
+    model_kwargs = {}
+    if args.model in ("random_forest", "balanced_rf"):
+        model_kwargs = {
+            "n_estimators": args.n_estimators,
+            "max_depth": args.max_depth,
+        }
+
     for library in TARGET_LIBRARIES:
         y = labels_df[library].values
         support = int(y.sum())
@@ -145,15 +143,27 @@ def main():
             print(f"{library:<20} {'N/A':>8} {'N/A':>8} {support:>10} {'skip':>10}")
             continue
 
+        metrics = run_cross_validation(
+            model_class=model_class,
+            data=data,
+            y=y,
+            feature_config=feature_config,
+            model_config=model_config,
+            eval_config=eval_config,
+            model_kwargs=model_kwargs,
+        )
+
+        pipeline = FeaturePipeline(feature_config)
+        X_all = pipeline.fit_transform(data)
+        feature_names = pipeline.get_feature_names()
+
         model = create_model(
             args.model,
             model_config,
             n_estimators=args.n_estimators,
             max_depth=args.max_depth,
         )
-        metrics = run_cross_validation(model, X, y, eval_config)
-
-        model.fit(X, y)
+        model.fit(X_all, y)
         top_features = model.get_feature_importance(feature_names)
 
         report.add_result(library, metrics, top_features)
